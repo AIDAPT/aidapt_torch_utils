@@ -22,6 +22,11 @@ class CheckpointHandler:
             "optimizer": optimizer,
             "epoch": checkpoint["epoch"]
         }
+    
+    def load_latest_checkpoint(
+        self, model: torch.nn.Module, optimizer: torch.optim.Optimizer | None = None):
+        chosen_checkpoint_index = sorted(map(lambda file_name: int(file_name.split(".")[0].split("-")[1]), os.listdir(self.checkpoint_dir)), reverse=True)[0]
+        return self.load_checkpoint(model, optimizer, os.path.join(self.checkpoint_dir, 'checkpoint-{}.pth'.format(chosen_checkpoint_index)))
 
     def save_checkpoint(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int):
         arch = type(model).__name__
