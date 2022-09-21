@@ -7,4 +7,5 @@ setup(
     description='Collection of utils for PyTorch training and models',
     author='AIDAPT',
     license='MIT',
+    requires=["torch"]
 )
