@@ -1,34 +1,89 @@
+"""Contains the utils needed to save/load checkpoints for PyTorch models."""
+
+from dataclasses import dataclass
 import torch
 import os
 
+@dataclass
+class CheckpointData:
+    """Class which contains data from a loaded checkpoint.
+    
+    Attributes:
+        arch (str): The name of the model or architecture
+        model (torch.nn.Module): The model with the state_dict loaded from the checkpoint
+        optimizer (torch.optim.Optimizer): If present, the optimizer with the state_dict loaded from the checkpoint
+        epoch (int): The epoch relative to the checkpoint
+        
+    """
+
+    arch: str
+    model: torch.nn.Module
+    optimizer: torch.optim.Optimizer | None
+    epoch: int
+
 class CheckpointHandler:
-    def __init__(self, device: torch.device, checkpoint_epoch_interval: int, checkpoint_dir: str = "") -> None:
-        self.interval = checkpoint_epoch_interval
+    """Class which handles checkpoints for a PyTorch model.
+    
+    This class contains the methods used to save a checkpoint, or load one. The checkpoints will contain
+    the model and the optimizer with the new weights, which can be used to resume training.
+
+    Attributes:
+        device (torch.device): Used by the CheckpointHandler to load the checkpoint on the correct device
+        checkpoint_dir (str): Path where the checkpoints will be saved or loaded
+        interval (int): Epoch interval, which dictates how often the checkpoints may be saved
+    """
+
+    def __init__(self, device: torch.device, interval: int, checkpoint_dir: str = "") -> None:
+        self.interval = interval
         self.checkpoint_dir = checkpoint_dir
         self.device = device
 
     def load_checkpoint(
-        self, model: torch.nn.Module, optimizer: torch.optim.Optimizer | None = None, resume_path: str | None = None):
+            self, resume_path: str, model: torch.nn.Module, optimizer: torch.optim.Optimizer | None = None) -> CheckpointData:
+        """
+        Return the data from a checkpoint which path is specified by the user.
 
+        Attributes:
+            resume_path (str): Path where the checkpoint is stored
+            model (torch.nn.Module): The PyTorch model where the checkpoint's state_dict will be loaded
+            optimizer (torch.optim.Optimizer | None): If present, the PyTorch optimizer where the checkpoint's state_dict will be loaded
+
+        Returns:
+            An instance of CheckpointData, which contains data from a loaded checkpoint
+        """
         checkpoint = torch.load(resume_path, map_location=self.device)
         model.load_state_dict(checkpoint['state_dict'])
 
         if optimizer is not None:
             optimizer.load_state_dict(checkpoint['optimizer'])
 
-        return {
-            "arch": checkpoint["arch"],
-            "model": model,
-            "optimizer": optimizer,
-            "epoch": checkpoint["epoch"]
-        }
-    
+        return CheckpointData(checkpoint["arch"], model, optimizer, checkpoint["epoch"])
+
     def load_latest_checkpoint(
-        self, model: torch.nn.Module, optimizer: torch.optim.Optimizer | None = None):
-        chosen_checkpoint_index = sorted(map(lambda file_name: int(file_name.split(".")[0].split("-")[1]), os.listdir(self.checkpoint_dir)), reverse=True)[0]
+            self, model: torch.nn.Module, optimizer: torch.optim.Optimizer | None = None) -> CheckpointData:
+        """
+        Return the data from the checkpoint relative to the latest epoch.
+
+        Attributes:
+            model (torch.nn.Module): The PyTorch model where the checkpoint's state_dict will be loaded
+            optimizer (torch.optim.Optimizer | None): If present, the PyTorch optimizer where the checkpoint's state_dict will be loaded
+
+        Returns:
+            An instance of CheckpointData, which contains data from a loaded checkpoint
+        """
+        chosen_checkpoint_index = sorted(map(lambda file_name: int(file_name.split(
+            ".")[0].split("-")[1]), os.listdir(self.checkpoint_dir)), reverse=True)[0]
         return self.load_checkpoint(model, optimizer, os.path.join(self.checkpoint_dir, 'checkpoint-{}.pth'.format(chosen_checkpoint_index)))
 
-    def save_checkpoint(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int):
+    def save_checkpoint(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int) -> None:
+        """Save a checkpoint.
+        
+        Save a checkpoint, given the current model, optimizer, and epoch, to the CheckpointHandler's dir.
+
+        Attributes:
+            model (torch.nn.Module): The PyTorch model which weigths will be saved into the checkpoint
+            optimizer (torch.optim.Optimizer): The PyTorch optimizer which weigths will be saved into the checkpoint
+        """
         arch = type(model).__name__
         state = {
             'arch': arch,
@@ -36,9 +91,18 @@ class CheckpointHandler:
             'state_dict': model.state_dict(),
             'optimizer': optimizer.state_dict(),
         }
-        filename = os.path.join(self.checkpoint_dir, 'checkpoint-{}.pth'.format(epoch))
+        filename = os.path.join(self.checkpoint_dir,
+                                'checkpoint-{}.pth'.format(epoch))
         torch.save(state, filename)
-    
-    def save_checkpoint_interval(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int):
+
+    def save_checkpoint_interval(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int) -> None:
+        """Save a checkpoint every each interval.
+        
+        Save a checkpoint, given the current model, optimizer, and epoch, to the CheckpointHandler's dir. The checkpoint will be saved only if the current epoch matches the interval given to the CheckpointHandler.
+
+        Attributes:
+            model (torch.nn.Module): The PyTorch model which weigths will be saved into the checkpoint
+            optimizer (torch.optim.Optimizer): The PyTorch optimizer which weigths will be saved into the checkpoint
+        """
         if epoch % self.interval == 0:
             self.save_checkpoint(model, optimizer, epoch)
