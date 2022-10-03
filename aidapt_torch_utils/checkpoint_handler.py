@@ -47,7 +47,7 @@ class CheckpointHandler:
         self.device = device
 
     def load_checkpoint(
-            self, resume_path: str, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None) -> CheckpointData:
+            self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None, resume_path: str = "checkpoint.pth") -> CheckpointData:
         """
         Return the data from a checkpoint which path is specified by the user.
 
